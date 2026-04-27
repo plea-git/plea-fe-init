@@ -65,20 +65,48 @@ pnpm dlx @plea-fe/plea-fe-init my-project \
 
 이 패키지는 npm public registry에 `@plea-fe/plea-fe-init` 이름으로 배포하는 것을 기준으로 합니다.
 
-로컬에서 직접 배포할 때:
+배포는 Changesets와 GitHub Actions로 관리합니다.
+
+일반적인 배포 흐름:
+
+1. 코드를 수정합니다.
+2. 변경사항에 대한 changeset을 추가합니다.
+
+```bash
+pnpm changeset
+```
+
+3. 변경사항과 changeset 파일을 커밋하고 `main`에 push합니다.
+4. GitHub Actions가 `chore: release` PR을 생성합니다.
+5. release PR을 merge하면 npm publish와 GitHub Release note 생성이 자동으로 진행됩니다.
+
+GitHub Actions 배포를 위해 repository secret에 `NPM_TOKEN`이 필요합니다.
+
+```txt
+Name: NPM_TOKEN
+Value: npm에서 발급한 read/write token
+```
+
+최초 설정 후에는 로컬에서 직접 publish하지 않는 것을 권장합니다.
+
+긴급하게 로컬에서 직접 배포해야 할 때:
 
 ```bash
 pnpm install
 pnpm lint
 pnpm build
-pnpm publish --access public
+pnpm changeset
+pnpm version-packages
+pnpm release
 ```
 
-GitHub Actions로 배포할 때:
+## 의존성 / 취약점 관리
 
-1. npm에서 publish 권한이 있는 access token을 생성합니다.
-2. GitHub repository secret에 `NPM_TOKEN` 이름으로 등록합니다.
-3. GitHub Actions의 `Publish` workflow를 실행합니다.
+이 저장소는 아래 방식으로 의존성과 취약점을 관리합니다.
+
+- Dependabot이 매주 월요일 오전 9시에 npm 패키지와 GitHub Actions 업데이트 PR을 생성합니다.
+- CI에서 `pnpm audit --audit-level=high`를 실행합니다.
+- GitHub repository의 Dependabot alerts/security updates도 켜두는 것을 권장합니다.
 
 ## 개발
 
@@ -86,6 +114,7 @@ GitHub Actions로 배포할 때:
 pnpm install
 pnpm lint
 pnpm build
+pnpm audit
 ```
 
 로컬에서 CLI를 테스트할 때:

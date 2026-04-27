@@ -1,16 +1,17 @@
-name: Publish
+name: CI
 
 on:
-  workflow_dispatch:
-  release:
-    types: [published]
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
 
-permissions:
-  contents: read
-  id-token: write
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
-  publish:
+  ci:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -25,7 +26,6 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 24
-          registry-url: https://registry.npmjs.org/
           cache: pnpm
 
       - name: Install dependencies
@@ -34,13 +34,11 @@ jobs:
       - name: Type check
         run: pnpm lint
 
+      - name: Security audit
+        run: pnpm audit --audit-level=high
+
       - name: Build
         run: pnpm build
 
       - name: Pack check
         run: pnpm pack --dry-run
-
-      - name: Publish to npm
-        run: pnpm publish --access public --no-git-checks --provenance
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
