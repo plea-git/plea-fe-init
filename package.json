@@ -1,6 +1,6 @@
 {
   "name": "@plea-fe/plea-fe-init",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Company React frontend project initializer.",
   "type": "module",
   "repository": {
