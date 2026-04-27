@@ -1,0 +1,42 @@
+{
+  "name": "@plea-git/plea-fe-init",
+  "version": "0.1.0",
+  "description": "Company React frontend project initializer.",
+  "type": "module",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/plea-git/plea-fe-init.git"
+  },
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org/"
+  },
+  "bin": {
+    "plea-fe-init": "./dist/index.js"
+  },
+  "files": [
+    "dist",
+    "templates",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "tsup src/index.ts --format esm --target node20 --clean --no-dts",
+    "dev": "tsx src/index.ts",
+    "lint": "tsc --noEmit",
+    "prepack": "pnpm build"
+  },
+  "engines": {
+    "node": ">=20.19.0"
+  },
+  "packageManager": "pnpm@10.28.2",
+  "dependencies": {
+    "@clack/prompts": "^1.2.0",
+    "execa": "^9.6.1"
+  },
+  "devDependencies": {
+    "@types/node": "^25.6.0",
+    "tsup": "^8.5.1",
+    "tsx": "^4.21.0",
+    "typescript": "^6.0.3"
+  }
+}
