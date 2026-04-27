@@ -135,7 +135,7 @@ async function main() {
   await ensureTargetDir(options.targetDir);
 
   const s = spinner();
-  s.start('Creating project files');
+  s.start('프로젝트 파일 생성 중');
   await cp(templateDir, options.targetDir, {
     recursive: true,
     force: false,
@@ -143,18 +143,18 @@ async function main() {
   });
   await restoreGitignore(options.targetDir);
   await applyOptions(options);
-  s.stop('Project files created');
+  s.stop('프로젝트 파일 생성 완료');
 
   if (options.git) {
-    await runStep('Initializing git repository', options.targetDir, 'git', ['init']);
+    await runStep('Git 저장소 초기화 중', options.targetDir, 'git', ['init']);
   }
 
   if (options.install) {
-    await runStep('Installing dependencies with pnpm', options.targetDir, 'pnpm', ['install']);
+    await runStep('pnpm 의존성 설치 중', options.targetDir, 'pnpm', ['install']);
   }
 
-  note(buildSummary(options), 'Project ready');
-  outro('Done');
+  note(buildSummary(options), '프로젝트 생성 완료');
+  outro('완료');
 }
 
 async function resolveOptions(input: {
@@ -170,16 +170,16 @@ async function resolveOptions(input: {
   let projectArg = input.projectArg;
 
   if (!projectArg && input.nonInteractive) {
-    throw new Error('Project name is required in non-interactive mode.');
+    throw new Error('non-interactive 모드에서는 프로젝트 이름이 필요합니다.');
   }
 
   if (!projectArg) {
     projectArg = unwrap(
       await text({
-        message: 'Project name',
+        message: '프로젝트 이름',
         placeholder: 'my-project',
         validate(value) {
-          if (!value?.trim()) return 'Project name is required.';
+          if (!value?.trim()) return '프로젝트 이름을 입력해주세요.';
         },
       }),
     );
@@ -194,13 +194,13 @@ async function resolveOptions(input: {
       ? defaults.tests
       : unwrap(
           await select({
-            message: 'Test setup',
+            message: '테스트 환경을 선택해주세요.',
             initialValue: defaults.tests,
             options: [
-              { value: 'both', label: 'Vitest + Playwright' },
-              { value: 'unit', label: 'Vitest only' },
-              { value: 'e2e', label: 'Playwright only' },
-              { value: 'none', label: 'None' },
+              { value: 'both', label: '단위 테스트 + E2E 테스트' },
+              { value: 'unit', label: '단위 테스트만' },
+              { value: 'e2e', label: 'E2E 테스트만' },
+              { value: 'none', label: '사용 안 함' },
             ],
           }),
         ));
@@ -211,11 +211,11 @@ async function resolveOptions(input: {
       ? defaults.auth
       : unwrap(
           await select({
-            message: 'Auth/session style',
+            message: '세션 관리 방식을 선택해주세요.',
             initialValue: defaults.auth,
             options: [
-              { value: 'jwt', label: 'JWT token' },
-              { value: 'cookie', label: 'Session cookie' },
+              { value: 'jwt', label: 'JWT 토큰 방식' },
+              { value: 'cookie', label: '세션 쿠키 방식' },
             ],
           }),
         ));
@@ -226,7 +226,7 @@ async function resolveOptions(input: {
       ? defaults.storybook
       : unwrap(
           await confirm({
-            message: 'Use Storybook?',
+            message: 'Storybook을 사용할까요?',
             initialValue: defaults.storybook,
           }),
         ));
@@ -237,12 +237,12 @@ async function resolveOptions(input: {
       ? defaults.deploy
       : unwrap(
           await select({
-            message: 'Deployment CI example',
+            message: '배포 CI 예시를 선택해주세요.',
             initialValue: defaults.deploy,
             options: [
-              { value: 'none', label: 'None' },
+              { value: 'none', label: '사용 안 함' },
               { value: 's3-cloudfront', label: 'S3 + CloudFront' },
-              { value: 'ec2', label: 'EC2 static deploy' },
+              { value: 'ec2', label: 'EC2 정적 배포' },
             ],
           }),
         ));
@@ -800,14 +800,14 @@ function parseChoice<T extends string>(
 ) {
   if (value === undefined) return undefined;
   if (allowed.includes(value as T)) return value as T;
-  throw new Error(`Invalid --${flagName}: ${value}. Use one of: ${allowed.join(', ')}`);
+  throw new Error(`--${flagName} 값이 올바르지 않습니다: ${value}. 사용 가능: ${allowed.join(', ')}`);
 }
 
 function parseBoolean(value: string | undefined, flagName: string) {
   if (value === undefined) return undefined;
   if (['true', 'yes', '1'].includes(value)) return true;
   if (['false', 'no', '0'].includes(value)) return false;
-  throw new Error(`Invalid --${flagName}: ${value}. Use true or false.`);
+  throw new Error(`--${flagName} 값이 올바르지 않습니다: ${value}. true 또는 false를 사용해주세요.`);
 }
 
 function unwrap<T>(value: T | symbol): T {
@@ -836,29 +836,53 @@ function buildSummary(options: ScaffoldOptions) {
   ].filter(Boolean);
 
   return [
-    `Project: ${options.packageName}`,
-    `Tests: ${options.tests}`,
-    `Auth: ${options.auth}`,
-    `Storybook: ${options.storybook ? 'enabled' : 'disabled'}`,
-    `Deploy: ${options.deploy}`,
+    `프로젝트: ${options.packageName}`,
+    `테스트: ${formatTestOption(options.tests)}`,
+    `세션 관리: ${formatAuthOption(options.auth)}`,
+    `Storybook: ${options.storybook ? '사용' : '사용 안 함'}`,
+    `배포 CI: ${formatDeployOption(options.deploy)}`,
     '',
     commands.join('\n'),
   ].join('\n');
 }
 
+function formatTestOption(value: TestOption) {
+  return {
+    both: '단위 테스트 + E2E 테스트',
+    unit: '단위 테스트만',
+    e2e: 'E2E 테스트만',
+    none: '사용 안 함',
+  }[value];
+}
+
+function formatAuthOption(value: AuthOption) {
+  return {
+    jwt: 'JWT 토큰 방식',
+    cookie: '세션 쿠키 방식',
+  }[value];
+}
+
+function formatDeployOption(value: DeployOption) {
+  return {
+    none: '사용 안 함',
+    's3-cloudfront': 'S3 + CloudFront',
+    ec2: 'EC2 정적 배포',
+  }[value];
+}
+
 function printHelp() {
-  process.stdout.write(`Usage:
+  process.stdout.write(`사용법:
   plea-fe-init <project-name> [options]
 
-Options:
-  -y, --yes                         Use defaults for omitted options
-  --tests <none|unit|e2e|both>      Test setup
-  --auth <jwt|cookie>               Auth/session style
-  --storybook <true|false>          Include Storybook
-  --deploy <none|s3-cloudfront|ec2> Deployment CI example
-  --no-install                      Skip pnpm install
-  --skip-git                        Skip git init
-  -h, --help                        Show help
+옵션:
+  -y, --yes                         입력하지 않은 옵션은 기본값 사용
+  --tests <none|unit|e2e|both>      테스트 환경
+  --auth <jwt|cookie>               세션 관리 방식
+  --storybook <true|false>          Storybook 포함 여부
+  --deploy <none|s3-cloudfront|ec2> 배포 CI 예시
+  --no-install                      pnpm install 생략
+  --skip-git                        git init 생략
+  -h, --help                        도움말 출력
 `);
 }
 
