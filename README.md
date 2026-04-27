@@ -2,7 +2,23 @@
 
 프론트엔드 팀 공통 React 프로젝트 초기 세팅 CLI입니다.
 
-`react-common`레포지토리를 기본 템플릿으로 사용하고, 프로젝트 생성 시 선택한 옵션에 따라 테스트, Storybook, 세션 관리 방식, 배포 CI 예시를 조합해서 새 프로젝트를 생성합니다.
+private `react-common` 레포지토리를 기본 템플릿으로 사용하고, 프로젝트 생성 시 선택한 옵션에 따라 테스트, Storybook, 세션 관리 방식, 배포 CI 예시를 조합해서 새 프로젝트를 생성합니다.
+
+CLI 패키지는 public npm registry에 배포하지만, 실제 템플릿 코드는 npm 패키지에 포함하지 않습니다. 명령어 실행 시 사용자의 GitHub 권한으로 private `react-common` repository를 가져옵니다.
+
+## 사전 준비
+
+기본 템플릿 repository는 아래 경로입니다.
+
+```txt
+git@github.com:dev3-thor/react-common.git
+```
+
+사용하려면 아래 조건이 필요합니다.
+
+- `dev3-thor/react-common` repository 접근 권한
+- GitHub에 등록된 SSH key
+- 로컬에서 `git clone git@github.com:dev3-thor/react-common.git`이 가능한 상태
 
 ## 사용법
 
@@ -57,8 +73,33 @@ pnpm dlx @plea-fe/plea-fe-init my-project \
 --auth <jwt|cookie>
 --storybook <true|false>
 --deploy <none|s3-cloudfront|ec2>
+--template-repo <repo>
+--template-ref <ref>
 --no-install
 --skip-git
+```
+
+템플릿 원본을 바꿔서 테스트할 수도 있습니다.
+
+```bash
+pnpm dlx @plea-fe/plea-fe-init my-project \
+  --template-repo git@github.com:dev3-thor/react-common.git \
+  --template-ref main
+```
+
+로컬의 `react-common` 작업본을 사용해 테스트할 때:
+
+```bash
+pnpm dev test-project --yes --no-install --skip-git \
+  --template-repo /Users/hama/Desktop/workspace/react-common
+```
+
+환경변수도 지원합니다.
+
+```bash
+PLEA_TEMPLATE_REPO=git@github.com:dev3-thor/react-common.git \
+PLEA_TEMPLATE_REF=main \
+pnpm dlx @plea-fe/plea-fe-init my-project
 ```
 
 ## 배포
@@ -120,5 +161,6 @@ pnpm audit
 로컬에서 CLI를 테스트할 때:
 
 ```bash
-pnpm dev test-project --yes --no-install --skip-git
+pnpm dev test-project --yes --no-install --skip-git \
+  --template-repo /Users/hama/Desktop/workspace/react-common
 ```

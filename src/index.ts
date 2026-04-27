@@ -3,6 +3,7 @@
 import {
   chmod,
   cp,
+  mkdtemp,
   mkdir,
   readFile,
   readdir,
@@ -10,9 +11,9 @@ import {
   stat,
   writeFile,
 } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
 import path from 'node:path';
 import process from 'node:process';
-import { fileURLToPath } from 'node:url';
 import { parseArgs } from 'node:util';
 import {
   cancel,
@@ -41,6 +42,8 @@ type ScaffoldOptions = {
   deploy: DeployOption;
   install: boolean;
   git: boolean;
+  templateRepo: string;
+  templateRef: string;
 };
 
 type PackageJson = {
@@ -82,9 +85,22 @@ type KnipConfig = {
 };
 
 const biomeVersion = '2.4.13';
-
-const packageRoot = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
-const templateDir = path.join(packageRoot, 'templates', 'react-common');
+const defaultTemplateRepo = 'git@github.com:dev3-thor/react-common.git';
+const defaultTemplateRef = 'main';
+const generatedProjectCleanupPaths = [
+  '.git',
+  'node_modules',
+  'dist',
+  'build',
+  'coverage',
+  'storybook-static',
+  'playwright-report',
+  'test-results',
+  '.turbo',
+  '.vite',
+  '.next',
+  '.env.local',
+];
 
 const testOptions = ['none', 'unit', 'e2e', 'both'] as const;
 const authOptions = ['jwt', 'cookie'] as const;
@@ -108,6 +124,8 @@ async function main() {
       auth: { type: 'string' },
       storybook: { type: 'string' },
       deploy: { type: 'string' },
+      'template-repo': { type: 'string' },
+      'template-ref': { type: 'string' },
       'no-install': { type: 'boolean' },
       'skip-git': { type: 'boolean' },
     },
@@ -128,22 +146,30 @@ async function main() {
     rawAuth: values.auth,
     rawStorybook: values.storybook,
     rawDeploy: values.deploy,
+    rawTemplateRepo: values['template-repo'],
+    rawTemplateRef: values['template-ref'],
     install: !values['no-install'],
     git: !values['skip-git'],
   });
 
   await ensureTargetDir(options.targetDir);
+  const fetchedTemplate = await fetchTemplate(options);
 
-  const s = spinner();
-  s.start('프로젝트 파일 생성 중');
-  await cp(templateDir, options.targetDir, {
-    recursive: true,
-    force: false,
-    errorOnExist: false,
-  });
-  await restoreGitignore(options.targetDir);
-  await applyOptions(options);
-  s.stop('프로젝트 파일 생성 완료');
+  try {
+    const s = spinner();
+    s.start('프로젝트 파일 생성 중');
+    await cp(fetchedTemplate.templateDir, options.targetDir, {
+      recursive: true,
+      force: false,
+      errorOnExist: false,
+    });
+    await cleanupGeneratedProject(options.targetDir);
+    await restoreGitignore(options.targetDir);
+    await applyOptions(options);
+    s.stop('프로젝트 파일 생성 완료');
+  } finally {
+    await rm(fetchedTemplate.tempDir, { recursive: true, force: true });
+  }
 
   if (options.git) {
     await runStep('Git 저장소 초기화 중', options.targetDir, 'git', ['init']);
@@ -164,6 +190,8 @@ async function resolveOptions(input: {
   rawAuth?: string;
   rawStorybook?: string;
   rawDeploy?: string;
+  rawTemplateRepo?: string;
+  rawTemplateRef?: string;
   install: boolean;
   git: boolean;
 }): Promise<ScaffoldOptions> {
@@ -257,7 +285,76 @@ async function resolveOptions(input: {
     deploy,
     install: input.install,
     git: input.git,
+    templateRepo: resolveTemplateValue(
+      input.rawTemplateRepo,
+      process.env.PLEA_TEMPLATE_REPO,
+      defaultTemplateRepo,
+    ),
+    templateRef: resolveTemplateValue(
+      input.rawTemplateRef,
+      process.env.PLEA_TEMPLATE_REF,
+      defaultTemplateRef,
+    ),
   };
+}
+
+async function fetchTemplate(options: ScaffoldOptions) {
+  const tempDir = await mkdtemp(path.join(tmpdir(), 'plea-fe-init-'));
+  const templateDir = path.join(tempDir, 'react-common');
+  const args = ['clone', '--depth', '1'];
+
+  if (options.templateRef) {
+    args.push('--branch', options.templateRef);
+  }
+
+  args.push(options.templateRepo, templateDir);
+
+  const s = spinner();
+  s.start('react-common 템플릿 가져오는 중');
+
+  try {
+    await execa('git', args, { stdio: 'pipe' });
+    s.stop('react-common 템플릿 가져오기 완료');
+    return { tempDir, templateDir };
+  } catch (error) {
+    s.stop('react-common 템플릿 가져오기 실패');
+    await rm(tempDir, { recursive: true, force: true });
+    throw new Error(buildTemplateFetchError(options, error));
+  }
+}
+
+function buildTemplateFetchError(options: ScaffoldOptions, error: unknown) {
+  const details = getCommandOutput(error);
+  return [
+    'private react-common 템플릿을 가져오지 못했습니다.',
+    '',
+    `template repo: ${options.templateRepo}`,
+    `template ref: ${options.templateRef}`,
+    '',
+    '확인할 항목:',
+    '- GitHub SSH key가 등록되어 있는지 확인해주세요.',
+    '- dev3-thor/react-common repository 접근 권한이 있는지 확인해주세요.',
+    '- SSH 대신 다른 원본을 쓰려면 --template-repo 또는 PLEA_TEMPLATE_REPO를 사용해주세요.',
+    details ? ['', 'git output:', details].join('\n') : undefined,
+  ]
+    .filter(Boolean)
+    .join('\n');
+}
+
+function getCommandOutput(error: unknown) {
+  if (!error || typeof error !== 'object') return '';
+
+  const maybeOutput = error as {
+    shortMessage?: unknown;
+    stderr?: unknown;
+    stdout?: unknown;
+    message?: unknown;
+  };
+  const values = [maybeOutput.shortMessage, maybeOutput.stderr, maybeOutput.stdout, maybeOutput.message]
+    .filter((value): value is string => typeof value === 'string' && value.trim().length > 0)
+    .map((value) => value.trim());
+
+  return unique(values).join('\n');
 }
 
 async function applyOptions(options: ScaffoldOptions) {
@@ -281,6 +378,14 @@ async function restoreGitignore(targetDir: string) {
   const content = await readFile(fallbackPath, 'utf8');
   await writeFile(path.join(targetDir, '.gitignore'), content);
   await rm(fallbackPath, { force: true });
+}
+
+async function cleanupGeneratedProject(targetDir: string) {
+  await Promise.all(
+    generatedProjectCleanupPaths.map((entry) =>
+      rm(path.join(targetDir, entry), { recursive: true, force: true }),
+    ),
+  );
 }
 
 async function updatePackageJson(options: ScaffoldOptions) {
@@ -810,6 +915,11 @@ function parseBoolean(value: string | undefined, flagName: string) {
   throw new Error(`--${flagName} 값이 올바르지 않습니다: ${value}. true 또는 false를 사용해주세요.`);
 }
 
+function resolveTemplateValue(cliValue: string | undefined, envValue: string | undefined, fallback: string) {
+  const value = cliValue ?? envValue ?? fallback;
+  return value.trim();
+}
+
 function unwrap<T>(value: T | symbol): T {
   if (isCancel(value)) {
     cancel('Canceled');
@@ -841,6 +951,7 @@ function buildSummary(options: ScaffoldOptions) {
     `세션 관리: ${formatAuthOption(options.auth)}`,
     `Storybook: ${options.storybook ? '사용' : '사용 안 함'}`,
     `배포 CI: ${formatDeployOption(options.deploy)}`,
+    `템플릿: ${options.templateRepo}#${options.templateRef}`,
     '',
     commands.join('\n'),
   ].join('\n');
@@ -880,6 +991,8 @@ function printHelp() {
   --auth <jwt|cookie>               세션 관리 방식
   --storybook <true|false>          Storybook 포함 여부
   --deploy <none|s3-cloudfront|ec2> 배포 CI 예시
+  --template-repo <repo>            react-common 템플릿 git repository
+  --template-ref <ref>              react-common 템플릿 branch/tag
   --no-install                      pnpm install 생략
   --skip-git                        git init 생략
   -h, --help                        도움말 출력
