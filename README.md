@@ -61,5 +61,4 @@ npx @plea-fe/plea-fe-init my-project
 
 - Dependabot이 매주 월요일 오전 9시에 npm 패키지와 GitHub Actions 업데이트 PR을 생성합니다.
 - CI에서 `pnpm audit --audit-level=high`를 실행합니다.
-- GitHub repository의 Dependabot alerts/security updates도 켜두는 것을 권장합니다.
 
