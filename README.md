@@ -63,18 +63,3 @@ npx @plea-fe/plea-fe-init my-project
 - CI에서 `pnpm audit --audit-level=high`를 실행합니다.
 - GitHub repository의 Dependabot alerts/security updates도 켜두는 것을 권장합니다.
 
-## 개발
-
-```bash
-pnpm install
-pnpm lint
-pnpm build
-pnpm audit
-```
-
-로컬에서 CLI를 테스트할 때:
-
-```bash
-pnpm dev test-project --yes --no-install --skip-git \
-  --template-repo /Users/hama/Desktop/workspace/react-common
-```
